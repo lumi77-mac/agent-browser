@@ -1,53 +1,47 @@
 ---
 name: agent-browser
-description: "Headless browser automation CLI. Use this skill to navigate websites, click elements, fill forms, take screenshots, and extract web data using deterministic element references. RUNS IN AN ISOLATED CONTAINER."
+description: "Headless browser automation via Docker Microservice. Navigate, interact, and extract web data using deterministic references."
 ---
 
 # Agent Browser Automation (Microservice Mode)
 
-This skill provides headless browser capabilities. The browser engine does NOT run in your local environment. It runs in a dedicated, isolated Docker container named `skill-browser`.
+This skill provides headless browser capabilities via a dedicated, isolated Docker container named `skill-browser`.
 
-## ⚠️ Execution Context & Shared Volume (CRITICAL)
+## ⚠️ Execution Context (CRITICAL)
 
-You are the Master Controller. You **CANNOT** run `agent-browser` directly. You **MUST** route all browser commands to the isolated container using `docker exec skill-browser`. 
+- **Route All Commands**: You MUST use `docker exec skill-browser`.
+- **Absolute Path**: Use the full path `/usr/local/bin/agent-browser` for reliability.
+- **Shared Workspace**: Files (screenshots, downloads) are shared at `/home/node/.openclaw/workspace`. You can access them directly in your current directory.
 
-Both your container and the `skill-browser` container share the exact same working directory (`/home/node/.openclaw/workspace`). Any screenshots or files saved by the browser will be immediately accessible to you in this directory. You do not need to move files between containers.
+## 🚀 First-Time Initialization (MANDATORY)
 
-## Optimal AI Workflow (Snapshot & Ref Pattern)
+To start the browser on this ARM64 environment, your **FIRST** command in a session MUST include the system path and sandbox flags:
 
-Do not guess CSS selectors. Always use the deterministic "snapshot and reference" workflow. Note the `docker exec skill-browser` prefix on EVERY command:
+```bash
+docker exec skill-browser /usr/local/bin/agent-browser open [https://example.com](https://example.com) --executable-path /usr/bin/chromium --no-sandbox --disable-setuid-sandbox
 
-1. **Navigate**: `docker exec skill-browser agent-browser open <url>`
-2. **Analyze**: `docker exec skill-browser agent-browser snapshot -i` (Gets interactive elements with refs like `@e1`, `@e2`)
-3. **Interact**: Use the refs from the snapshot to perform actions (e.g., `docker exec skill-browser agent-browser click @e1`)
-4. **Verify**: Always re-snapshot after navigation or significant DOM changes to get new, updated refs.
+```
+
+## 🛠️ Standard Execution (After Initialization)
+
+Once the browser is running, you can use cleaner commands:
+
+1. **Navigate**: `docker exec skill-browser /usr/local/bin/agent-browser open <url>`
+2. **Snapshot**: `docker exec skill-browser /usr/local/bin/agent-browser snapshot -i` (Get @e1, @e2...)
+3. **Interact**: `docker exec skill-browser /usr/local/bin/agent-browser click @e1`
+4. **Screenshot**: `docker exec skill-browser /usr/local/bin/agent-browser screenshot page.png`
 
 ## Core Command Reference
 
-### Navigation & Setup
-* `docker exec skill-browser agent-browser open <url>`: Navigate to URL
-* `docker exec skill-browser agent-browser close`: Close browser instance
-* `docker exec skill-browser agent-browser wait --load networkidle`: Wait for page to fully load
+### Interaction (Always use @refs from Snapshot)
 
-### Page Analysis
-* `docker exec skill-browser agent-browser snapshot`: Full accessibility tree
-* `docker exec skill-browser agent-browser snapshot -i`: Interactive elements only (Recommended)
-* `docker exec skill-browser agent-browser screenshot page.png`: Take a screenshot (Saves directly to your shared workspace)
+* `... agent-browser fill <@ref> "<text>"`: Clear and type.
+* `... agent-browser press Enter`: Submit form or trigger action.
+* `... agent-browser wait --load networkidle`: Ensure page is ready.
 
-### Interactions (Use @refs)
-* `docker exec skill-browser agent-browser click <@ref>`: Click element
-* `docker exec skill-browser agent-browser fill <@ref> "<text>"`: Clear and type text into input
-* `docker exec skill-browser agent-browser type <@ref> "<text>"`: Type without clearing
-* `docker exec skill-browser agent-browser press <key>`: Press key (e.g., Enter, Tab)
-* `docker exec skill-browser agent-browser select <@ref> "<value>"`: Select dropdown option
-* `docker exec skill-browser agent-browser hover <@ref>`: Hover over element
+### Chaining (Recommended for Efficiency)
 
-### Information Extraction
-* `docker exec skill-browser agent-browser get text <@ref>`: Get text content
-* `docker exec skill-browser agent-browser get attr <@ref> <attr>`: Get specific attribute
-* `docker exec skill-browser agent-browser get title`: Get page title
-* `docker exec skill-browser agent-browser get url`: Get current URL
+```bash
+docker exec skill-browser bash -c "/usr/local/bin/agent-browser open <url> && /usr/local/bin/agent-browser wait && /usr/local/bin/agent-browser snapshot -i"
 
-## Chaining Commands
-For efficiency, chain commands inside a single bash execution string if you do not need intermediate output. 
-Example: `docker exec skill-browser bash -c "agent-browser open example.com && agent-browser wait --load networkidle && agent-browser snapshot -i"`
+```
